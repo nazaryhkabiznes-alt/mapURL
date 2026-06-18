@@ -2,248 +2,132 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Радар ПВО: Звуковое Оповещение</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #030712; font-family: monospace; overflow: hidden; }
-        #map { width: 100%; height: 100%; background: #030712; }
-        
-        .interface-panel {
-            position: absolute; top: 20px; left: 20px; z-index: 1001;
-            background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(239, 68, 68, 0.5);
-            padding: 15px; border-radius: 6px; width: 310px; color: #fff;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.7); pointer-events: auto;
-            backdrop-filter: blur(4px);
-        }
-        h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #ef4444; border-bottom: 1px solid rgba(239, 68, 68, 0.3); padding-bottom: 5px; letter-spacing: 0.5px;}
-        .info-row { display: flex; justify-content: space-between; font-size: 12px; margin: 8px 0; font-weight: bold; align-items: center; }
-        .blink { animation: alert-blink 1s infinite; color: #ef4444; }
-        
-        /* Выпадающий список регионов */
-        .region-select {
-            background: #1e293b; color: #fff; border: 1px solid #475569;
-            padding: 4px; border-radius: 4px; width: 150px; font-family: monospace; font-size: 11px;
-            outline: none; cursor: pointer;
-        }
-        .region-select:focus { border-color: #ef4444; }
-
-        .sync-pulse {
-            display: inline-block; width: 8px; height: 8px; 
-            background-color: #22c55e; border-radius: 50%; 
-            margin-right: 5px; animation: pulse-green 1s infinite;
-        }
-        
-        .drone-icon {
-            font-size: 24px; text-align: center; color: #f97316;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+        :root {
+            --glass: rgba(255, 255, 255, 0.1);
+            --glow: rgba(139, 92, 246, 0.6);
         }
 
-        .smooth-glow-border {
-            stroke-dasharray: 8, 6;
-            animation: glow-movement 2s linear infinite;
-            filter: drop-shadow(0px 0px 3px #ef4444);
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Анимированный волнообразный фон */
+            background: linear-gradient(135deg, #0f172a, #1e1b4b, #312e81);
+            background-size: 400% 400%;
+            animation: gradientWave 10s ease infinite;
+            font-family: 'Segoe UI', sans-serif;
         }
 
-        @keyframes glow-movement { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 28; } }
-        @keyframes alert-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes pulse-green { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0.9); opacity: 1; } }
+        @keyframes gradientWave {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .calculator {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(25px);
+            padding: 30px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            width: 320px;
+            position: relative;
+        }
+
+        /* Эффект глянцевого блика сверху */
+        .calculator::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 40px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        #display {
+            width: 100%;
+            height: 70px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            color: #fff;
+            font-size: 2rem;
+            text-align: right;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        button {
+            height: 60px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.3s;
+            /* Внутренний глянец */
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 15px var(--glow);
+        }
+
+        button:active { transform: scale(0.9); }
+
+        .equals { background: var(--glow) !important; grid-column: span 2; }
     </style>
 </head>
 <body>
 
-    <div class="interface-panel">
-        <h3>ТАКТИЧЕСКИЙ РАДАР ПВО</h3>
-        <div class="info-row">
-            <span>МОНИТОРИНГ:</span>
-            <!-- СЕЛЕКТ С ВЫБОРОМ ОБЛАСТИ -->
-            <select id="region-selector" class="region-select" onchange="saveTargetRegion()">
-                <option value="none">-- Не выбрана --</option>
-                <option value="Херсонська область">Херсонская обл.</option>
-                <option value="Миколаївська область">Николаевская обл.</option>
-                <option value="Одеська область">Одесская обл.</option>
-                <option value="Запорізька область">Запорожская обл.</option>
-                <option value="Крим">АР Крым</option>
-            </select>
-        </div>
-        <div class="info-row"><span>ИСТОЧНИК:</span> <span style="color:#38bdf8;">Ubilling Alerts</span></div>
-        <div class="info-row"><span>ПОТОК СВЯЗИ:</span> <span><span class="sync-pulse"></span><span style="color:#22c55e;">СТАБИЛЕН</span></span></div>
-        <div class="info-row" style="color: #38bdf8;"><span>ОБНОВЛЕНИЕ СЕТИ:</span> <span>через <b id="timer-val" style="color: #f97316;">60</b> сек.</span></div>
-        <div class="info-row"><span>ЦЕЛИ В СЕКТОРЕ:</span> <span id="drone-count" style="color:#f97316;">0</span></div>
-<div id="alert-banner" class="info-row" style="margin-top: 10px; display:none;"><span class="blink">⚠ ОБНАРУЖЕНА ВОЗДУШНАЯ УГРОЗА</span></div>
+<div class="calculator">
+    <input type="text" id="display" readonly placeholder="0">
+    <div class="buttons">
+        <button onclick="clearDisplay()">AC</button>
+        <button onclick="deleteLast()">DEL</button>
+        <button onclick="appendToDisplay('/')">/</button>
+        <button onclick="appendToDisplay('*')">×</button>
+        <button onclick="appendToDisplay('7')">7</button>
+        <button onclick="appendToDisplay('8')">8</button>
+        <button onclick="appendToDisplay('9')">9</button>
+        <button onclick="appendToDisplay('-')">-</button>
+        <button onclick="appendToDisplay('4')">4</button>
+        <button onclick="appendToDisplay('5')">5</button>
+        <button onclick="appendToDisplay('6')">6</button>
+        <button onclick="appendToDisplay('+')">+</button>
+        <button onclick="appendToDisplay('1')">1</button>
+        <button onclick="appendToDisplay('2')">2</button>
+        <button onclick="appendToDisplay('3')">3</button>
+        <button class="equals" onclick="calculate()">=</button>
+        <button onclick="appendToDisplay('0')">0</button>
+<button onclick="appendToDisplay('.')">.</button>
     </div>
+</div>
 
-    <div id="map"></div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <script>
-        // Стандартный Аудио-контекст браузера для генерации реального звука сирены ПВО (без внешних mp3 файлов, чтобы 100% сработало)
-        let audioCtx = null;
-        let sirenInterval = null;
-
-        function startSirenSound() {
-            if (sirenInterval) return; // Сирена уже работает
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
-            sirenInterval = setInterval(() => {
-                let osc = audioCtx.createOscillator();
-                let gain = audioCtx.createGain();
-                osc.type = 'sawtooth';
-                // Реальный волнообразный звук сирены ГО (от 400Гц до 800Гц)
-                osc.frequency.setValueAtTime(550 + Math.sin(audioCtx.currentTime * 2) * 200, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime); // Громкость 30%
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.9);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 1);
-            }, 800);
-        }
-
-        function stopSirenSound() {
-            if (sirenInterval) {
-                clearInterval(sirenInterval);
-                sirenInterval = null;
-            }
-        }
-
-        // Сохранение и загрузка выбранной области в LocalStorage
-        function saveTargetRegion() {
-            const selectedRegion = document.getElementById('region-selector').value;
-            localStorage.setItem('monitored_region', selectedRegion);
-            // Браузер требует взаимодействия пользователя для включения звука
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            syncAirDefenseData(); 
-        }
-
-        function loadTargetRegion() {
-            const saved = localStorage.getItem('monitored_region');
-            if (saved) {
-                document.getElementById('region-selector').value = saved;
-            }
-        }
-
-        const southBounds = L.latLngBounds(L.latLng(44.0, 29.0), L.latLng(49.5, 37.5));
-        const map = L.map('map', { 
-            center: [46.7, 32.5], zoom: 7, minZoom: 6, maxZoom: 11,
-            maxBounds: southBounds, maxBoundsViscosity: 1.0
-        });
-
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { pane: 'shadowPane' }).addTo(map);
-
-        let geojsonLayer;
-        let activeAlerts = []; 
-        let droneMarkers = {}; 
-
-        const detailedRegions = {
-            "type": "FeatureCollection",
-            "features": [
-                { "type": "Feature", "properties": { "name": "Херсонська область" }, "geometry": { "type": "Polygon", "coordinates": [[[31.5,46.9],[32.8,46.9],[33.1,47.4],[34.5,46.9],[34.8,46.4],[34.6,46.0],[32.8,46.1],[32.2,46.4],[31.5,46.4],[31.5,46.9]]] } },
-                { "type": "Feature", "properties": { "name": "Миколаївська область" }, "geometry": { "type": "Polygon", "coordinates": [[[30.4,48.1],[32.2,48.2],[33.0,47.4],[32.8,46.9],[31.5,46.9],[31.4,46.5],[30.1,46.6],[30.4,48.1]]] } },
-                { "type": "Feature", "properties": { "name": "Одеська область" }, "geometry": { "type": "Polygon", "coordinates": [[[29.4,48.2],[30.8,48.1],[30.1,46.6],[31.4,46.5],[31.1,46.2],[29.7,45.3],[28.8,45.5],[29.4,48.2]]] } },
-{ "type": "Feature", "properties": { "name": "Запорізька область" }, "geometry": { "type": "Polygon", "coordinates": [[[34.3,47.9],[36.8,47.8],[37.1,47.1],[36.4,46.3],[34.7,46.2],[34.5,46.9],[34.3,47.9]]] } },
-                { "type": "Feature", "properties": { "name": "Крим" }, "geometry": { "type": "Polygon", "coordinates": [[[32.8,46.1],[34.6,46.0],[35.4,46.0],[36.6,45.3],[35.1,44.9],[33.5,44.4],[32.4,45.2],[32.8,46.1]]] } }
-            ]
-        };
-
-        function styleRegion(feature) {
-            const hasAlert = activeAlerts.includes(feature.properties.name);
-            return {
-                fillColor: hasAlert ? '#ef4444' : '#22c55e', 
-                weight: 2.5, opacity: 0.95,
-                color: hasAlert ? '#ff4d4d' : '#26d07c', 
-                fillOpacity: hasAlert ? 0.3 : 0.08,
-                className: 'smooth-glow-border'
-            };
-        }
-
-        geojsonLayer = L.geoJSON(detailedRegions, {
-            style: styleRegion,
-            onEachFeature: (f, l) => l.bindTooltip(f.properties.name, { sticky: true })
-        }).addTo(map);
-
-        async function syncAirDefenseData() {
-            try {
-                const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('http://ubilling.net.ua/aerialalerts/api/v1/states'));
-                const outerData = await response.json();
-                const data = JSON.parse(outerData.contents);
-
-                activeAlerts = [];
-                for (const regionName in data) {
-                    if (data[regionName] === 1 || data[regionName] === "1") {
-                        activeAlerts.push(regionName);
-                    }
-                }
-                updateMapAndDrones();
-
-                // ПРОВЕРКА НА ТРЕВОГУ В ВЫБРАННОЙ ОБЛАСТИ
-                const monitored = localStorage.getItem('monitored_region');
-                if (monitored && monitored !== "none" && activeAlerts.includes(monitored)) {
-                    startSirenSound(); // Включаем сирену
-                } else {
-                    stopSirenSound();  // Выключаем сирену
-                }
-
-            } catch (err) {
-                console.error("Ошибка сети ПВО:", err);
-            }
-        }
-
-        function updateMapAndDrones() {
-            if (geojsonLayer) geojsonLayer.setStyle(styleRegion);
-
-            Object.keys(droneMarkers).forEach(name => {
-                if (!activeAlerts.includes(name)) {
-                    map.removeLayer(droneMarkers[name]);
-                    delete droneMarkers[name];
-                }
-            });
-
-            activeAlerts.forEach(name => {
-                if (!droneMarkers[name]) {
-                    let lat = 46.6; let lng = 32.5;
-                    if (name === "Херсонська область") { lat = 46.1154; lng = 32.9103; } 
-                    if (name === "Одеська область") { lat = 46.4825; lng = 30.7233; }
-                    if (name === "Миколаївська область") { lat = 46.9750; lng = 31.9946; }
-                    if (name === "Запорізька область") { lat = 47.8388; lng = 35.1396; }
-
-                    const customIcon = L.divIcon({
-                        html: `<div class="drone-icon">🛸</div><div style="font-size:9px;color:#fff;font-weight:bold;white-space:nowrap;background:#ef4444;padding:2px 4px;border-radius:3px;box-shadow: 0 2px 6px rgba(0,0,0,0.6);">БПЛА</div>`,
-                        className: 'drone-container', iconSize: [40, 40]
-                    });
-
-                    droneMarkers[name] = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-                } else {
-                    const cur = droneMarkers[name].getLatLng();
-                    droneMarkers[name].setLatLng([cur.lat + (Math.random()-0.5)*0.009, cur.lng + (Math.random()-0.5)*0.009]);
-                }
-            });
-
-            const count = Object.keys(droneMarkers).length;
-            document.getElementById('drone-count').innerText = count;
-document.getElementById('alert-banner').style.display = count > 0 ? 'flex' : 'none';
-        }
-
-        // Инициализация загрузки сохраненного региона
-        loadTargetRegion();
-        syncAirDefenseData();
-
-        // Измененный таймер обновления на 60 секунд (1 минута)
-        let countdownTime = 60;
-        setInterval(() => {
-            countdownTime--;
-            document.getElementById('timer-val').innerText = countdownTime;
-            if (countdownTime <= 0) {
-                syncAirDefenseData();
-                countdownTime = 60; // Сброс обратно на 1 минуту
-            }
-        }, 1000);
-    </script>
+<script>
+    const display = document.getElementById('display');
+    function appendToDisplay(input) { display.value += input; }
+    function clearDisplay() { display.value = ""; }
+    function deleteLast() { display.value = display.value.slice(0, -1); }
+    function calculate() {
+        try { display.value = eval(display.value); } 
+        catch { display.value = "Error"; }
+    }
+</script>
 </body>
 </html>
